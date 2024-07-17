@@ -14,15 +14,15 @@ import (
 )
 
 type SampleValues struct {
-	object      string
-	alloc       int32
-	alloc_count int32
-	space       int32
-	bytes       int32
+	object        string
+	alloc_objects int32
+	alloc_space   int32
+	inuse_objects int32
+	inuse_space   int32
 }
 
 func (s *SampleValues) size() int32 {
-	return s.alloc * s.alloc_count
+	return s.alloc_space
 }
 
 func (s *SampleValues) humanSize() string {
@@ -49,32 +49,33 @@ func main() {
 		for _, location := range sample.Location {
 			for _, line := range location.Line {
 				funcName := line.Function.Name
-				if strings.Contains(funcName, "k8s.io") && strings.Contains(funcName, "Unmarshal") {
-					funcNameSplit := strings.Split(funcName, ".")
-					if len(funcNameSplit) < 3 {
-						continue
+				funcNameSplit := strings.Split(funcName, ".")
+				if len(funcNameSplit) < 3 {
+					continue
+				}
+				baseFuncName := funcNameSplit[len(funcNameSplit)-1]
+				if baseFuncName != "Unmarshal" {
+					continue
+				}
+				if funcNameSplit[0] != "k8s" {
+					continue
+				}
+				objName := funcNameSplit[len(funcNameSplit)-2]
+				if string(objName[0]) != "(" || string(objName[len(objName)-1]) != ")" {
+					continue
+				}
+				if existing, ok := objs[objName]; !ok {
+					objs[objName] = SampleValues{
+						alloc_objects: int32(sample.Value[0]),
+						alloc_space:   int32(sample.Value[1]),
+						inuse_objects: int32(sample.Value[2]),
+						inuse_space:   int32(sample.Value[3]),
 					}
-					baseFuncName := funcNameSplit[len(funcNameSplit)-1]
-					if baseFuncName != "Unmarshal" {
-						continue
-					}
-					objName := funcNameSplit[len(funcNameSplit)-2]
-					if string(objName[0]) != "(" || string(objName[len(objName)-1]) != ")" {
-						continue
-					}
-					if existing, ok := objs[objName]; !ok {
-						objs[objName] = SampleValues{
-							alloc:       int32(sample.Value[0]),
-							alloc_count: int32(sample.Value[1]),
-							space:       int32(sample.Value[2]),
-							bytes:       int32(sample.Value[3]),
-						}
-					} else {
-						existing.alloc += int32(sample.Value[0])
-						existing.alloc_count += int32(sample.Value[1])
-						existing.space += int32(sample.Value[2])
-						existing.bytes += int32(sample.Value[3])
-					}
+				} else {
+					existing.alloc_objects += int32(sample.Value[0])
+					existing.alloc_space += int32(sample.Value[1])
+					existing.inuse_objects += int32(sample.Value[2])
+					existing.inuse_space += int32(sample.Value[3])
 				}
 			}
 		}
@@ -93,6 +94,6 @@ func main() {
 		})
 
 	for _, v := range results {
-		fmt.Printf("%s %s: alloc %d num %d / in_use %d num %d\n", v.object, v.humanSize(), v.alloc, v.alloc_count, v.space, v.bytes)
+		fmt.Printf("%s %s: alloc obj %d alloc space %d / inuse obj %d inuse space %d\n", v.object, v.humanSize(), v.alloc_objects, v.alloc_space, v.inuse_objects, v.inuse_space)
 	}
 }
