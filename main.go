@@ -15,6 +15,7 @@ import (
 
 type SampleValues struct {
 	object        string
+	funcname      string
 	alloc_objects int32
 	alloc_space   int32
 	inuse_objects int32
@@ -66,6 +67,7 @@ func main() {
 				}
 				if existing, ok := objs[objName]; !ok {
 					objs[objName] = SampleValues{
+						funcname:      funcName,
 						alloc_objects: int32(sample.Value[0]),
 						alloc_space:   int32(sample.Value[1]),
 						inuse_objects: int32(sample.Value[2]),
@@ -94,6 +96,6 @@ func main() {
 		})
 
 	for _, v := range results {
-		fmt.Printf("%s %s: alloc obj %d alloc space %d / inuse obj %d inuse space %d\n", v.object, v.humanSize(), v.alloc_objects, v.alloc_space, v.inuse_objects, v.inuse_space)
+		fmt.Printf("%s %s: alloc obj %d alloc space %d / inuse obj %d inuse space %d\n", v.funcname, v.humanSize(), v.alloc_objects, v.alloc_space, v.inuse_objects, v.inuse_space)
 	}
 }
